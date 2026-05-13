@@ -13,5 +13,5 @@ Minimum operator checklist:
 - Configure the VPS provider PTR/rDNS record so it points to `smtp.zxmail.site`.
 - Open and route SMTP ports `25`, `465`, and `587` to the Postal host.
 - Point `POSTAL_BASE_URL` in zxMail to the Postal web/API base URL.
-- Set Postal to send webhooks to `https://dashboard.zxmail.site/webhooks/postal/event`.
+- Set Postal to send webhooks to `https://app.zxmail.site/webhooks/postal/event`.
 - Reuse the same `POSTAL_WEBHOOK_SECRET` value in both Postal and zxMail.

@@ -108,6 +108,10 @@ services:
     image: ${CADDY_IMAGE:-caddy:2.10-alpine}
     container_name: zxmail-caddy
     restart: unless-stopped
+    environment:
+      DASHBOARD_HOST: ${DASHBOARD_HOST:-app.zxmail.site}
+      API_HOST: ${API_HOST:-api.zxmail.site}
+      LETSENCRYPT_EMAIL: ${LETSENCRYPT_EMAIL}
     depends_on:
       backend:
         condition: service_started

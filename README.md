@@ -49,7 +49,7 @@ Postal note:
 ## Getting started
 1. Copy `.env.example` to `.env` and replace every placeholder secret.
 2. Set `FIRST_ADMIN_EMAIL` and `FIRST_ADMIN_PASSWORD` if you want the API to bootstrap the initial admin automatically on startup.
-3. Set `FRONTEND_ORIGIN`, `COOKIE_DOMAIN`, `NEXT_PUBLIC_APP_NAME`, and `NEXT_PUBLIC_API_BASE_URL` to the public dashboard/browser origin, for example `https://dashboard.zxmail.site` and `.zxmail.site`.
+3. Set `DASHBOARD_HOST`, `API_HOST`, `FRONTEND_ORIGIN`, `COOKIE_DOMAIN`, `NEXT_PUBLIC_APP_NAME`, and `NEXT_PUBLIC_API_BASE_URL` to your public browser and API origins, for example `app.zxmail.site`, `api.zxmail.site`, `https://app.zxmail.site`, and `.zxmail.site`.
 4. Review `LOGIN_MAX_FAILURES`, `LOGIN_FAILURE_WINDOW_MINUTES`, and `LOGIN_LOCKOUT_MINUTES` for your login throttling policy before going live.
 5. Set your encryption keys:
    - `ENCRYPTION_KEY_ID` identifies the legacy single-key path.
@@ -59,7 +59,7 @@ Postal note:
 6. Set `POSTAL_BASE_URL`, `POSTAL_API_KEY`, and `POSTAL_WEBHOOK_SECRET` to your Postal deployment values.
 7. Start the stack with `docker compose up --build -d`.
 8. Apply the SQL migrations using your preferred migration runner.
-9. Configure Postal separately and point its webhook to `https://dashboard.zxmail.site/webhooks/postal/event`.
+9. Configure Postal separately and point its webhook to `https://app.zxmail.site/webhooks/postal/event`.
 
 ## Migration commands
 Apply the baseline migration with `psql`:
@@ -100,7 +100,8 @@ Current integration status:
 This is deliberate. zxMail does not fake Postal success for operations that have not yet been wired to a confirmed Postal API endpoint.
 
 ## Deployment notes
-- `dashboard.zxmail.site` may sit behind Cloudflare proxy if you want CDN or WAF behavior for the dashboard.
+- `app.zxmail.site` may sit behind Cloudflare proxy if you want CDN or WAF behavior for the dashboard.
+- `api.zxmail.site` may also sit behind Cloudflare proxy if you want the API on a dedicated hostname through the same Caddy origin.
 - `smtp.zxmail.site` must be `DNS only` in Cloudflare. Never proxy the SMTP hostname.
 - PTR/rDNS at the VPS provider must point to `smtp.zxmail.site`.
 - Postal must own SMTP ports `25`, `465`, and `587`.

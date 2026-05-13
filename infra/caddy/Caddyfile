@@ -1,4 +1,4 @@
-{$DASHBOARD_HOST:localhost}, localhost {
+{$DASHBOARD_HOST:app.zxmail.site} {
 	encode gzip zstd
 
 	@backend path /api/* /health /health/* /webhooks/*
@@ -9,4 +9,9 @@
 	handle {
 		reverse_proxy frontend:3000
 	}
+}
+
+{$API_HOST:api.zxmail.site} {
+	encode gzip zstd
+	reverse_proxy backend:8080
 }
