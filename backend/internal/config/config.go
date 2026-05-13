@@ -112,6 +112,12 @@ func (c Config) Validate() error {
 		if strings.HasPrefix(c.FrontendOrigin, "http://") {
 			validationErrors = append(validationErrors, "FRONTEND_ORIGIN should use https in production")
 		}
+		if isDefaultLocalDatabaseURL(c.DatabaseURL) {
+			validationErrors = append(validationErrors, "DATABASE_URL must be explicitly configured in production and must not use the localhost fallback")
+		}
+		if isDefaultLocalRedisURL(c.RedisURL) {
+			validationErrors = append(validationErrors, "REDIS_URL must be explicitly configured in production and must not use the localhost fallback")
+		}
 	}
 
 	if len(validationErrors) == 0 {
@@ -181,4 +187,14 @@ func contains(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func isDefaultLocalDatabaseURL(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	return normalized == "postgres://zxmail:zxmail@localhost:5432/zxmail?sslmode=disable"
+}
+
+func isDefaultLocalRedisURL(value string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	return normalized == "redis://localhost:6379/0"
 }

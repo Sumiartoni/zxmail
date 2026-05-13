@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"zxmail/backend/internal/config"
@@ -36,15 +38,23 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 
 	log := logger.New(cfg.AppName)
 
+	dbHost, dbName, dbUser := describePostgresTarget(cfg.DatabaseURL)
+	log.Info("bootstrapping postgres connection host=%s database=%s user=%s", dbHost, dbName, dbUser)
 	dbPool, err := database.NewPostgresPool(ctx, cfg.DatabaseURL)
 	if err != nil {
+		log.Error("postgres bootstrap failed host=%s database=%s user=%s error=%v", dbHost, dbName, dbUser, err)
 		return nil, fmt.Errorf("open postgres: %w", err)
 	}
+	log.Info("postgres connection ready host=%s database=%s user=%s", dbHost, dbName, dbUser)
 
+	redisAddr, redisDB := describeRedisTarget(cfg.RedisURL)
+	log.Info("bootstrapping redis connection addr=%s db=%s", redisAddr, redisDB)
 	redisClient, err := cache.NewRedisClient(ctx, cfg.RedisURL)
 	if err != nil {
+		log.Error("redis bootstrap failed addr=%s db=%s error=%v", redisAddr, redisDB, err)
 		return nil, fmt.Errorf("open redis: %w", err)
 	}
+	log.Info("redis connection ready addr=%s db=%s", redisAddr, redisDB)
 
 	postalClient := postal.NewClient(cfg.PostalBaseURL, cfg.PostalAPIKey, cfg.SMTPHost)
 	authService := authmodule.NewService(
@@ -109,6 +119,60 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 			dbPool.Close()
 		},
 	}, nil
+}
+
+func describePostgresTarget(databaseURL string) (host string, database string, user string) {
+	parsed, err := url.Parse(databaseURL)
+	if err != nil {
+		return "unknown", "unknown", "unknown"
+	}
+
+	if parsed.User != nil {
+		user = parsed.User.Username()
+	}
+	if user == "" {
+		user = "unknown"
+	}
+
+	host = parsed.Hostname()
+	if host == "" {
+		host = "unknown"
+	}
+
+	database = strings.TrimPrefix(parsed.Path, "/")
+	if database == "" {
+		database = "unknown"
+	}
+
+	return host, database, user
+}
+
+func describeRedisTarget(redisURL string) (addr string, db string) {
+	trimmed := strings.TrimSpace(redisURL)
+	if trimmed == "" {
+		return "unknown", "unknown"
+	}
+
+	if !strings.Contains(trimmed, "://") {
+		return trimmed, "0"
+	}
+
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return "unknown", "unknown"
+	}
+
+	addr = parsed.Host
+	if addr == "" {
+		addr = "unknown"
+	}
+
+	db = strings.TrimPrefix(parsed.Path, "/")
+	if db == "" {
+		db = "0"
+	}
+
+	return addr, db
 }
 
 func (a *App) Run(ctx context.Context) error {
