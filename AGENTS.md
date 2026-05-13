@@ -1,0 +1,25 @@
+# zxMail Development Rules
+
+- Use Go for backend.
+- Use Gin as HTTP framework.
+- Use PostgreSQL for persistence.
+- Use Redis for rate limiting and queue jobs.
+- Use Next.js + TypeScript + Tailwind for frontend.
+- Use Docker Compose for local and production v1.
+- Do not implement Phase 2 features unless explicitly requested.
+- Prioritize Production v1 only:
+  - auth
+  - organizations
+  - domains
+  - DNS verification
+  - SMTP credentials
+  - send logs
+  - bounces
+  - suppressions
+  - quota
+  - Postal webhook
+  - admin dashboard
+  - customer dashboard
+- Store secrets securely.
+- Show SMTP password only once.
+- Never proxy SMTP records through Cloudflare.

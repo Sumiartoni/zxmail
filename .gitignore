@@ -1,0 +1,17 @@
+.env
+.env.local
+.env.production
+.DS_Store
+Thumbs.db
+
+backend/.env
+backend/bin/
+backend/coverage.out
+backend/*.exe
+
+frontend/.next/
+frontend/node_modules/
+frontend/out/
+
+infra/postal/state/
+infra/postal/data/

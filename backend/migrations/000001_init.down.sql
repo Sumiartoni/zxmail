@@ -1,0 +1,10 @@
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS webhooks;
+DROP TABLE IF EXISTS dns_checks;
+DROP TABLE IF EXISTS suppressions;
+DROP TABLE IF EXISTS bounces;
+DROP TABLE IF EXISTS send_logs;
+DROP TABLE IF EXISTS smtp_credentials;
+DROP TABLE IF EXISTS domains;
+DROP TABLE IF EXISTS organizations;
+DROP TABLE IF EXISTS users;

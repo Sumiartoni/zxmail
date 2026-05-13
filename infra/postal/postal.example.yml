@@ -1,0 +1,33 @@
+web:
+  host: ${POSTAL_WEB_HOST}
+  protocol: https
+
+main_db:
+  host: postal-mysql
+  username: ${POSTAL_DB_USER}
+  password: ${POSTAL_DB_PASSWORD}
+  database: ${POSTAL_DB_NAME}
+
+message_db:
+  host: postal-mysql
+  username: ${POSTAL_DB_USER}
+  password: ${POSTAL_DB_PASSWORD}
+  database: ${POSTAL_DB_NAME}
+
+smtp_server:
+  hostname: ${SMTP_HOST}
+  port: 25
+  tls_enabled: true
+
+rabbitmq:
+  host: postal-rabbitmq
+  username: ${POSTAL_RABBITMQ_USER}
+  password: ${POSTAL_RABBITMQ_PASSWORD}
+  vhost: /
+
+dns:
+  mx_records:
+    - ${SMTP_HOST}
+
+rails:
+  secret_key: ${POSTAL_SECRET_KEY}

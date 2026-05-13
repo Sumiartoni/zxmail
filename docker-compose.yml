@@ -1,0 +1,134 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    container_name: zxmail-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: ${REDIS_IMAGE:-redis:7-alpine}
+    container_name: zxmail-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+    container_name: zxmail-backend
+    restart: unless-stopped
+    environment:
+      APP_ENV: ${APP_ENV}
+      TZ: ${TZ}
+      APP_NAME: ${APP_NAME}
+      HTTP_PORT: ${HTTP_PORT}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN}
+      CORS_ALLOW_ORIGINS: ${CORS_ALLOW_ORIGINS}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN}
+      SHUTDOWN_TIMEOUT_SECONDS: ${SHUTDOWN_TIMEOUT_SECONDS}
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_TTL_HOURS: ${JWT_TTL_HOURS}
+      LOGIN_MAX_FAILURES: ${LOGIN_MAX_FAILURES}
+      LOGIN_FAILURE_WINDOW_MINUTES: ${LOGIN_FAILURE_WINDOW_MINUTES}
+      LOGIN_LOCKOUT_MINUTES: ${LOGIN_LOCKOUT_MINUTES}
+      FIRST_ADMIN_EMAIL: ${FIRST_ADMIN_EMAIL}
+      FIRST_ADMIN_PASSWORD: ${FIRST_ADMIN_PASSWORD}
+      ENCRYPTION_KEY_ID: ${ENCRYPTION_KEY_ID}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      ENCRYPTION_KEYS: ${ENCRYPTION_KEYS}
+      ACTIVE_ENCRYPTION_KEY_ID: ${ACTIVE_ENCRYPTION_KEY_ID}
+      POSTAL_BASE_URL: ${POSTAL_BASE_URL}
+      POSTAL_API_KEY: ${POSTAL_API_KEY}
+      POSTAL_WEBHOOK_SECRET: ${POSTAL_WEBHOOK_SECRET}
+      SMTP_PUBLIC_HOST: ${SMTP_PUBLIC_HOST}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_PORT_STARTTLS: ${SMTP_PORT_STARTTLS}
+      SMTP_PORT_TLS: ${SMTP_PORT_TLS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080/health/ready >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME}
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+    container_name: zxmail-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: ${PORT}
+      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME}
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL}
+    depends_on:
+      backend:
+        condition: service_healthy
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3000 >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  caddy:
+    image: ${CADDY_IMAGE:-caddy:2.10-alpine}
+    container_name: zxmail-caddy
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1 >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
