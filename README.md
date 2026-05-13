@@ -11,7 +11,7 @@ zxMail is a self-hosted transactional email control plane built around Postal. T
 - `.env.example`: baseline environment variables for application and infrastructure wiring.
 
 ## Backend status
-- Health endpoints are implemented at `/health/live` and `/health/ready`.
+- Health endpoints are implemented at `/health`, `/health/live`, and `/health/ready`.
 - Production v1 route groups exist for auth, organizations, domains, credentials, logs, bounces, suppressions, admin, and Postal webhooks.
 - Initial migration creates Production v1 tables only: users, organizations, domains, SMTP credentials, send logs, bounces, suppressions, DNS checks, webhooks, and audit logs.
 - Postal integration layer lives in `backend/internal/postal` and currently exposes a real reachability check plus explicit placeholder operations for capabilities that still need confirmed Postal API wiring.
@@ -49,7 +49,7 @@ Postal note:
 ## Getting started
 1. Copy `.env.example` to `.env` and replace every placeholder secret.
 2. Set `FIRST_ADMIN_EMAIL` and `FIRST_ADMIN_PASSWORD` if you want the API to bootstrap the initial admin automatically on startup.
-3. Set `FRONTEND_ORIGIN`, `COOKIE_DOMAIN`, and `NEXT_PUBLIC_API_BASE_URL` to the public dashboard/browser origin, for example `https://dashboard.zxmail.site` and `.zxmail.site`.
+3. Set `FRONTEND_ORIGIN`, `COOKIE_DOMAIN`, `NEXT_PUBLIC_APP_NAME`, and `NEXT_PUBLIC_API_BASE_URL` to the public dashboard/browser origin, for example `https://dashboard.zxmail.site` and `.zxmail.site`.
 4. Review `LOGIN_MAX_FAILURES`, `LOGIN_FAILURE_WINDOW_MINUTES`, and `LOGIN_LOCKOUT_MINUTES` for your login throttling policy before going live.
 5. Set your encryption keys:
    - `ENCRYPTION_KEY_ID` identifies the legacy single-key path.
@@ -105,6 +105,9 @@ This is deliberate. zxMail does not fake Postal success for operations that have
 - PTR/rDNS at the VPS provider must point to `smtp.zxmail.site`.
 - Postal must own SMTP ports `25`, `465`, and `587`.
 - The dashboard/API stack can live behind Caddy on ports `80` and `443`, but SMTP traffic must terminate on Postal, not on Cloudflare proxy.
+- `/health` is a liveness endpoint and should stay `200 OK` as long as the API process is serving HTTP.
+- `/health/ready` is the readiness endpoint and may return `503` when PostgreSQL or Redis are not ready yet.
+- If readiness fails, inspect backend logs for wrapped ping errors such as `ping postgres host=...` or `ping redis addr=...`.
 
 ## Quota and rate limiting
 - PostgreSQL stores credential usage counters for `daily_used` and `monthly_used`, plus admin-managed limits for per-minute, daily, and monthly caps.

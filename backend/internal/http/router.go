@@ -44,7 +44,7 @@ func NewRouter(cfg config.Config, deps Dependencies) *gin.Engine {
 	router.Use(middleware.CORS(cfg.CORSAllowOrigins))
 	router.Use(middleware.Recovery(deps.Logger))
 
-	healthHandler := handlers.NewHealthHandler(deps.DB, deps.Redis)
+	healthHandler := handlers.NewHealthHandler(deps.Logger, deps.DB, deps.Redis)
 	authHandler := handlers.NewAuthHandler(
 		deps.AuthService,
 		cfg.CookieDomain,

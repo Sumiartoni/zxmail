@@ -89,3 +89,8 @@ make run
 ```
 
 The API expects PostgreSQL and Redis to be reachable through the environment variables defined in the root `.env.example`.
+
+## Health semantics
+- `GET /health` and `GET /health/live` are liveness endpoints. They return `200 OK` when the HTTP server is alive.
+- `GET /health/ready` performs PostgreSQL and Redis checks and may return `503 Service Unavailable` until dependencies are reachable.
+- Startup and readiness failures now include wrapped connection details such as PostgreSQL host/db/user or Redis addr/db to make deployment debugging less blind.

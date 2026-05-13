@@ -25,8 +25,9 @@ import type {
 } from "@/types/zxmail";
 
 const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ?? "";
+const nodeEnv = process.env.NODE_ENV ?? "development";
 
-export const previewMode = baseUrl === "";
+export const previewMode = nodeEnv !== "production" && baseUrl === "";
 
 export type CreateCredentialPayload = {
   domain_id: string;
@@ -214,30 +215,29 @@ export class ZxMailApiClient {
       return demoSystemHealth;
     }
 
-    const readyResponse = await this.request<Record<string, unknown>>("/health/ready");
-    const liveResponse = await this.request<Record<string, unknown>>("/health/live");
+    const liveResponse = await this.request<{ status: string }>("/health");
+    const readyResponse = await this.fetchJSON<{
+      status: string;
+      checks?: {
+        postgres?: { ready?: boolean };
+        redis?: { ready?: boolean };
+      };
+    }>("/health/ready");
+
     return {
-      api: readyResponse.status === "ok" ? "healthy" : "degraded",
+      api: liveResponse.status === "ok" ? "healthy" : "degraded",
       postal: "manual-check",
-      redis: liveResponse.status === "ok" ? "healthy" : "degraded",
-      postgres: readyResponse.status === "ok" ? "healthy" : "degraded",
+      redis: readyResponse.checks?.redis?.ready ? "healthy" : "degraded",
+      postgres: readyResponse.checks?.postgres?.ready ? "healthy" : "degraded",
       notes: [
         "Postal live API provisioning still needs confirmed server and credential contracts.",
+        "Liveness is served by /health. Dependency readiness is served by /health/ready.",
       ],
     };
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
-    const headers = new Headers(init?.headers);
-    headers.set("Content-Type", "application/json");
-
-    const response = await fetch(`${baseUrl}${path}`, {
-      ...init,
-      headers,
-      cache: "no-store",
-      credentials: "include",
-    });
-
+    const response = await this.fetch(path, init);
     if (!response.ok) {
       let message = "Request failed";
       try {
@@ -250,5 +250,22 @@ export class ZxMailApiClient {
     }
 
     return response.json() as Promise<T>;
+  }
+
+  private async fetchJSON<T>(path: string, init?: RequestInit): Promise<T> {
+    const response = await this.fetch(path, init);
+    return response.json() as Promise<T>;
+  }
+
+  private fetch(path: string, init?: RequestInit): Promise<Response> {
+    const headers = new Headers(init?.headers);
+    headers.set("Content-Type", "application/json");
+
+    return fetch(`${baseUrl}${path}`, {
+      ...init,
+      headers,
+      cache: "no-store",
+      credentials: "include",
+    });
   }
 }
