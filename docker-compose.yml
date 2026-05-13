@@ -83,15 +83,15 @@ services:
     build:
       context: ./frontend
       args:
-        NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-zxMail}
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-}
+        NEXT_PUBLIC_APP_NAME: "zxMail"
+        NEXT_PUBLIC_API_BASE_URL: "https://api.zxmail.site"
     container_name: zxmail-frontend
     restart: unless-stopped
     environment:
       NODE_ENV: production
-      PORT: ${PORT}
-      NEXT_PUBLIC_APP_NAME: ${NEXT_PUBLIC_APP_NAME:-zxMail}
-      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-}
+      PORT: "3000"
+      NEXT_PUBLIC_APP_NAME: "zxMail"
+      NEXT_PUBLIC_API_BASE_URL: "https://api.zxmail.site"
     depends_on:
       backend:
         condition: service_started
