@@ -26,6 +26,7 @@ var (
 	ErrCredentialNotFound     = errors.New("credential not found")
 	ErrCredentialDomainState  = errors.New("domain must be verified")
 	ErrCredentialDisabled     = errors.New("credential disabled")
+	ErrCredentialLimited      = errors.New("organization billing or suspension state blocks credential issuance")
 )
 
 type Service struct {
@@ -156,6 +157,9 @@ func (s *Service) Create(ctx context.Context, actor authmodule.AuthenticatedUser
 
 	domain, err := s.loadAuthorizedVerifiedDomain(ctx, actor, domainID)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureOrganizationAllowsCredentialCreate(ctx, domain.OrganizationID); err != nil {
 		return nil, err
 	}
 
@@ -360,11 +364,11 @@ func (s *Service) loadAuthorizedVerifiedDomain(ctx context.Context, actor authmo
 func (s *Service) loadAuthorizedCredential(ctx context.Context, actor authmodule.AuthenticatedUser, credentialID uuid.UUID) (*Credential, error) {
 	row, err := s.db.Query(
 		ctx,
-		`SELECT c.id, c.organization_id, c.domain_id, d.name, c.username, COALESCE(c.label, ''), c.enabled,
-		        c.created_at, c.last_used_at, c.quota_per_minute_limit, c.quota_daily_limit, c.quota_daily_used, c.quota_monthly_limit, c.quota_monthly_used
-		 FROM smtp_credentials c
-		 JOIN domains d ON d.id = c.domain_id
-		 WHERE c.id = $1`,
+			`SELECT c.id, c.organization_id, c.domain_id, d.name, c.username, COALESCE(c.label, ''), c.enabled,
+			        c.created_at, c.last_used_at, c.quota_per_minute_limit, c.quota_daily_limit, c.quota_daily_used, c.quota_monthly_limit, c.quota_monthly_used
+			 FROM smtp_credentials c
+			 JOIN domains d ON d.id = c.domain_id
+			 WHERE c.id = $1`,
 		credentialID,
 	)
 	if err != nil {
@@ -468,6 +472,11 @@ func (s *Service) applyRuntimeState(ctx context.Context, credential *Credential)
 		return nil
 	}
 
+	forcedReasons, forcedNote, err := s.organizationRuntimeRestrictions(ctx, credential.OrganizationID, credential.ID)
+	if err != nil {
+		return err
+	}
+
 	snapshot, err := s.quota.BuildSnapshot(ctx, quotamodule.SnapshotInput{
 		CredentialID:   credential.ID,
 		Enabled:        credential.Enabled,
@@ -486,7 +495,60 @@ func (s *Service) applyRuntimeState(ctx context.Context, credential *Credential)
 	credential.Limited = snapshot.Limited
 	credential.Exceeded = snapshot.Exceeded
 	credential.EnforcementNote = snapshot.EnforcementNote
+	if len(forcedReasons) > 0 {
+		credential.Status = "limited"
+		credential.Limited = true
+		credential.Exceeded = append(credential.Exceeded, forcedReasons...)
+		if forcedNote != "" {
+			credential.EnforcementNote = forcedNote
+		}
+	}
 	return nil
+}
+
+func (s *Service) ensureOrganizationAllowsCredentialCreate(ctx context.Context, organizationID uuid.UUID) error {
+	reasons, _, err := s.organizationRuntimeRestrictions(ctx, organizationID, uuid.Nil)
+	if err != nil {
+		return err
+	}
+	if len(reasons) > 0 {
+		return ErrCredentialLimited
+	}
+	return nil
+}
+
+func (s *Service) organizationRuntimeRestrictions(ctx context.Context, organizationID uuid.UUID, credentialID uuid.UUID) ([]string, string, error) {
+	var (
+		suspended       bool
+		subscriptionStatus string
+		manuallyLimited bool
+	)
+	if err := s.db.QueryRow(ctx, `SELECT suspended FROM organizations WHERE id = $1`, organizationID).Scan(&suspended); err != nil {
+		return nil, "", err
+	}
+	if err := s.db.QueryRow(ctx, `SELECT COALESCE((SELECT status FROM subscriptions WHERE organization_id = $1 ORDER BY created_at DESC LIMIT 1), 'missing')`, organizationID).Scan(&subscriptionStatus); err != nil {
+		return nil, "", err
+	}
+	if credentialID != uuid.Nil {
+		_ = s.db.QueryRow(ctx, `SELECT manually_limited FROM smtp_credentials WHERE id = $1`, credentialID).Scan(&manuallyLimited)
+	}
+
+	var reasons []string
+	note := quotamodule.EnforcementNote
+	if suspended {
+		reasons = append(reasons, "organization_suspended")
+		note = "Organization is suspended. Customer can still sign in, but new SMTP operations are restricted until the suspension is cleared."
+	}
+	switch subscriptionStatus {
+	case "expired", "suspended", "past_due":
+		reasons = append(reasons, "subscription_"+subscriptionStatus)
+		note = "Organization billing or subscription state is limiting SMTP operations. Review the current subscription and payment status."
+	}
+	if manuallyLimited {
+		reasons = append(reasons, "manual_limit")
+		note = "This credential was manually limited by an administrator."
+	}
+	return reasons, note, nil
 }
 
 func generateSecret() (string, error) {

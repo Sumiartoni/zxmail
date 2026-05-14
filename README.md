@@ -1,23 +1,26 @@
-# zxMail Production v1
+# zxMail Production Ready v2
 
-zxMail is a self-hosted transactional email control plane built around Postal. This repository is scaffolded specifically for Production v1, with the scope locked to auth, organizations, roles, domain onboarding, DNS verification, SMTP credentials, Postal integration, webhook ingestion, send logs, bounces, suppressions, quota enforcement, admin or customer dashboards, health endpoints, and Docker Compose deployment.
+zxMail is a self-hosted transactional email control plane built around Postal. This repository now extends the stable Production v1 foundation into Production Ready v2 with gateway-agnostic billing, subscription management, usage metering, deliverability indicators, retention controls, scheduled workers, and expanded admin/customer dashboards.
 
 ## Repository layout
 - `backend/`: Go + Gin API scaffold, platform adapters, route placeholders, and SQL migrations.
 - `frontend/`: Next.js + TypeScript + Tailwind dashboard scaffold for operator and customer flows.
 - `infra/`: reverse proxy and Postal configuration templates for single-node Docker Compose deployments.
 - `docs/`: architecture notes and the recommended implementation order.
-- `docker-compose.yml`: Production v1 topology for Postgres, Redis, backend, frontend, and Caddy, with Postal documented as an external SMTP core deployment.
+- `docker-compose.yml`: Production Ready v2 topology for Postgres, Redis, backend, worker, frontend, and Caddy, with Postal documented as an external SMTP core deployment.
 - `.env.example`: baseline environment variables for application and infrastructure wiring.
 
 ## Backend status
 - Health endpoints are implemented at `/health`, `/health/live`, and `/health/ready`.
-- Production v1 route groups exist for auth, organizations, domains, credentials, logs, bounces, suppressions, admin, and Postal webhooks.
+- `/ready` is available as a readiness alias for operational tooling.
+- Production v1 route groups remain intact for auth, organizations, domains, credentials, logs, bounces, suppressions, admin, and Postal webhooks.
+- Production Ready v2 route groups are available under `/api/v2` for plans, subscriptions, invoices, payments, usage, deliverability, alerts, retention, and advanced admin control.
 - Initial migration creates Production v1 tables only: users, organizations, domains, SMTP credentials, send logs, bounces, suppressions, DNS checks, webhooks, and audit logs.
+- Production Ready v2 migration adds plans, subscriptions, invoices, payments, usage records, quota events, deliverability snapshots, domain health checks, system alerts, and worker job runs.
 - Postal integration layer lives in `backend/internal/postal` and currently exposes a real reachability check plus explicit placeholder operations for capabilities that still need confirmed Postal API wiring.
 
 ## Frontend status
-- Landing page explains the Production v1 scope boundary.
+- Landing page explains the current zxMail positioning without exposing unfinished Phase 3 features.
 - Dashboard shell and Production v1 routes are implemented for:
   - `/login`
   - `/dashboard`
@@ -30,18 +33,64 @@ zxMail is a self-hosted transactional email control plane built around Postal. T
   - `/admin/customers`
   - `/admin/logs`
   - `/admin/system`
-- Frontend includes HttpOnly cookie-based auth handling, API wrapper, domain onboarding wizard, credential creation modal, logs filters, and responsive sidebar layout.
+- Production Ready v2 routes now also exist for:
+  - `/billing`
+  - `/usage`
+  - `/deliverability`
+  - `/alerts`
+  - `/settings`
+  - `/admin/overview`
+  - `/admin/organizations`
+  - `/admin/organizations/[id]`
+  - `/admin/billing`
+  - `/admin/payments`
+  - `/admin/invoices`
+  - `/admin/usage`
+  - `/admin/deliverability`
+  - `/admin/domain-health`
+  - `/admin/alerts`
+  - `/admin/retention`
+  - `/admin/audit-logs`
+- Frontend includes HttpOnly cookie-based auth handling, API wrapper, guided domain onboarding wizard, credential creation modal, logs filters, message detail drawer, and responsive sidebar layout.
+
+## Frontend UI
+- Design direction is a zxMail-specific blend of business dashboard clarity and developer-first email tooling, without copying Brevo, Mailjet, or Resend branding.
+- Shared frontend primitives now live around:
+  - `frontend/components/layout/` for `AppShell`
+  - `frontend/components/providers/` for auth and toast wiring
+  - `frontend/components/shared/` for stable wrappers like button, modal, page hero, section card, status badge, and copy button
+  - `frontend/components/ui/` for reusable dashboard primitives such as `PageHeader`, `MetricCard`, `DataTable`, `EmptyState`, `ErrorState`, `LoadingSkeleton`, `Drawer`, `Stepper`, `DNSRecordCard`, `CredentialSecretModal`, `MessageTimeline`, `QuotaUsageBar`, and `HealthStatusCard`
+- The current redesign covers:
+  - login
+  - customer dashboard
+  - domains list
+  - domain onboarding wizard
+  - credentials
+  - logs
+  - suppressions
+  - admin overview
+  - admin customers
+  - admin logs
+  - admin system
+- Preview mode remains available only when `NEXT_PUBLIC_API_BASE_URL` is empty outside production. It is intended for UI inspection only, not fake success in production.
+- `npm run typecheck` now runs `next typegen` first so a clean checkout can typecheck without requiring a prior build.
+
+Frontend API notes:
+- The redesign is wired to existing backend endpoints for login, me, domains, credentials, logs, suppressions, organizations, health, billing, usage, deliverability, alerts, retention, and admin system surfaces.
+- Plan creation and richer quota override editing remain API-ready but are not fully exposed as browser forms yet.
+- No Stripe, seed testing, warm-up, IP pool, or Phase 3 UI is included.
 
 ## Docker Compose topology
 - Public entrypoint: `caddy`
-- Internal-only services: `backend`, `frontend`, `postgres`, `redis`
+- Internal-only services: `backend`, `worker`, `frontend`, `postgres`, `redis`
 - PostgreSQL and Redis are not published to the host or internet.
 - Frontend is exposed through Caddy on `/`.
 - Backend is exposed through Caddy on `/api/*`, `/health*`, and `/webhooks/*`.
 - PostgreSQL data uses a persistent named volume: `postgres_data`.
+- Redis uses a persistent named volume: `redis_data`.
 
 Postal note:
-- Production v1 still uses Postal as the SMTP core.
+- Production Ready v2 still uses Postal as the SMTP core.
 - This repository's main Compose stack does not run Postal directly.
 - Deploy Postal separately on the same VPS or a dedicated mail host, then point `POSTAL_BASE_URL` and webhook settings back to zxMail.
 - See `infra/postal/README.md` and `infra/postal/postal.example.yml`.
@@ -57,19 +106,21 @@ Postal note:
    - `ENCRYPTION_KEYS` contains comma-separated `key_id:base64keymaterial` entries for the keyring used by new writes.
    - `ACTIVE_ENCRYPTION_KEY_ID` selects which key encrypts new or rotated SMTP credentials.
 6. Set `POSTAL_BASE_URL`, `POSTAL_API_KEY`, and `POSTAL_WEBHOOK_SECRET` to your Postal deployment values.
-7. Start the stack with `docker compose up --build -d`.
-8. Apply the SQL migrations using your preferred migration runner.
+7. Apply the SQL migrations using your preferred migration runner.
+8. Start the stack with `docker compose up --build -d`.
 9. Configure Postal separately and point its webhook to `https://app.zxmail.site/webhooks/postal/event`.
 
 ## Migration commands
 Apply the baseline migration with `psql`:
 ```bash
 psql "$DATABASE_URL" -f backend/migrations/000001_init.up.sql
+psql "$DATABASE_URL" -f backend/migrations/000002_production_v2.up.sql
 ```
 
 Rollback the baseline migration:
 ```bash
 psql "$DATABASE_URL" -f backend/migrations/000001_init.down.sql
+psql "$DATABASE_URL" -f backend/migrations/000002_production_v2.down.sql
 ```
 
 If your database was created from an older baseline before key rotation support, add the new column without re-encrypting existing rows:
@@ -82,7 +133,43 @@ On PowerShell, the same commands look like:
 ```powershell
 psql $env:DATABASE_URL -f backend/migrations/000001_init.up.sql
 psql $env:DATABASE_URL -f backend/migrations/000001_init.down.sql
+psql $env:DATABASE_URL -f backend/migrations/000002_production_v2.up.sql
+psql $env:DATABASE_URL -f backend/migrations/000002_production_v2.down.sql
 ```
+
+## Backup and restore
+Database backup example:
+```bash
+docker compose exec -T postgres pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" > backups/zxmail-$(date +%F).sql
+```
+
+Database restore example:
+```bash
+cat backups/zxmail-2026-05-14.sql | docker compose exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+```
+
+Notes:
+- keep backups outside the application containers on durable storage
+- do not delete invoices, payments, or audit logs as part of routine cleanup
+- test restore on a staging database before relying on backups for production recovery
+
+## Production Ready v2
+- Billing and subscriptions:
+  - plans and subscriptions are gateway-agnostic
+  - supported providers today: `manual_bank_transfer`, `manual_qris`
+  - customer plan changes still require admin approval
+- Usage and quota:
+  - PostgreSQL is the source of truth
+  - Redis keeps fast advisory counters
+  - accepted webhook events drive usage records
+- Deliverability:
+  - bounce, deferred, rejected, and delivered rates are shown as health indicators
+  - no seed testing, inbox placement claim, or FBL ingestion is implemented
+- Worker:
+  - daily and monthly reset
+  - subscription expiry check
+  - deliverability snapshots and alerts
+  - retention cleanup
 
 ## Postal integration
 The backend reads these environment variables for Postal integration:
@@ -107,8 +194,45 @@ This is deliberate. zxMail does not fake Postal success for operations that have
 - Postal must own SMTP ports `25`, `465`, and `587`.
 - The dashboard/API stack can live behind Caddy on ports `80` and `443`, but SMTP traffic must terminate on Postal, not on Cloudflare proxy.
 - `/health` is a liveness endpoint and should stay `200 OK` as long as the API process is serving HTTP.
-- `/health/ready` is the readiness endpoint and may return `503` when PostgreSQL or Redis are not ready yet.
+- `/health/ready` and `/ready` are readiness endpoints and may return `503` when PostgreSQL or Redis are not ready yet.
 - If readiness fails, inspect backend logs for wrapped ping errors such as `ping postgres host=...` or `ping redis addr=...`.
+- Worker health is available on the worker service itself at `/health`.
+- Keep `smtp.zxmail.site` as `DNS only` in Cloudflare and ensure PTR/rDNS maps back to it.
+- Keep `CORS_ALLOW_ORIGINS`, `COOKIE_DOMAIN`, `POSTAL_WEBHOOK_SECRET`, and encryption keys synchronized across deploys.
+
+## Frontend UI v2
+- Customer pages added:
+  - billing
+  - usage
+  - deliverability
+  - alerts
+  - settings
+- Admin pages added:
+  - overview
+  - organizations and organization detail
+  - billing
+  - payments
+  - invoices
+  - usage
+  - deliverability
+  - domain health
+  - alerts
+  - retention
+  - audit logs
+- Reusable UI added:
+  - `PlanCard`
+  - `InvoiceTable`
+  - `PaymentStatusBadge`
+  - `SubscriptionStatusCard`
+  - `UsageChart`
+  - `QuotaProgress`
+  - `DeliverabilityScoreCard`
+  - `DomainHealthChecklist`
+  - `AlertCenter`
+  - `AdminActionPanel`
+  - `RiskBadge`
+  - `RetentionPolicyForm`
+  - `AuditLogTable`
 
 ## Quota and rate limiting
 - PostgreSQL stores credential usage counters for `daily_used` and `monthly_used`, plus admin-managed limits for per-minute, daily, and monthly caps.
@@ -160,10 +284,19 @@ Manual rotation flow:
 5. Persist webhook events into send logs, bounces, suppressions, and credential quota usage.
 6. Connect the Next.js dashboard to real backend APIs and enforce admin vs customer navigation.
 
+## Documentation map
+- [docs/production-v2.md](docs/production-v2.md)
+- [docs/billing-manual.md](docs/billing-manual.md)
+- [docs/usage-quota.md](docs/usage-quota.md)
+- [docs/deliverability-health.md](docs/deliverability-health.md)
+- [docs/deployment.md](docs/deployment.md)
+- [docs/operations-runbook.md](docs/operations-runbook.md)
+- [docs/security.md](docs/security.md)
+
 ## Explicitly excluded in this scaffold
-- Billing and Stripe
+- Stripe
 - Kubernetes and multi-node orchestration
 - IP pool automation and seed testing
-- DMARC aggregate parsing
+- DMARC aggregate parsing and FBL ingestion
 - Vault and SSO
-- Advanced deliverability tooling
+- Inbox placement claims or advanced deliverability workbench

@@ -12,6 +12,7 @@ type Config struct {
 	AppName               string
 	AppEnv                string
 	HTTPPort              string
+	WorkerPort            string
 	FrontendOrigin        string
 	CORSAllowOrigins      []string
 	CookieDomain          string
@@ -34,6 +35,12 @@ type Config struct {
 	SMTPHost              string
 	SMTPPortSTARTTLS      string
 	SMTPPortTLS           string
+	DefaultRetentionDays  int
+	WorkerScheduleSeconds int
+	ManualBankName        string
+	ManualBankAccountName string
+	ManualBankAccountNo   string
+	ManualQRISLabel       string
 	ShutdownTimeout       time.Duration
 }
 
@@ -44,6 +51,7 @@ func Load() Config {
 		AppName:               getEnv("APP_NAME", "zxmail-api"),
 		AppEnv:                getEnv("APP_ENV", "development"),
 		HTTPPort:              getEnv("HTTP_PORT", "8080"),
+		WorkerPort:            getEnv("WORKER_PORT", "8090"),
 		FrontendOrigin:        frontendOrigin,
 		CORSAllowOrigins:      getCSVEnv("CORS_ALLOW_ORIGINS", []string{frontendOrigin}),
 		CookieDomain:          getEnv("COOKIE_DOMAIN", ""),
@@ -66,6 +74,12 @@ func Load() Config {
 		SMTPHost:              getEnv("SMTP_PUBLIC_HOST", getEnv("SMTP_HOST", "smtp.zxmail.test")),
 		SMTPPortSTARTTLS:      getEnv("SMTP_PORT_STARTTLS", "587"),
 		SMTPPortTLS:           getEnv("SMTP_PORT_TLS", "465"),
+		DefaultRetentionDays:  getIntEnv("DEFAULT_RETENTION_DAYS", 90),
+		WorkerScheduleSeconds: getIntEnv("WORKER_SCHEDULE_SECONDS", 60),
+		ManualBankName:        getEnv("MANUAL_BANK_NAME", ""),
+		ManualBankAccountName: getEnv("MANUAL_BANK_ACCOUNT_NAME", ""),
+		ManualBankAccountNo:   getEnv("MANUAL_BANK_ACCOUNT_NUMBER", ""),
+		ManualQRISLabel:       getEnv("MANUAL_QRIS_LABEL", ""),
 		ShutdownTimeout:       time.Duration(getIntEnv("SHUTDOWN_TIMEOUT_SECONDS", 10)) * time.Second,
 	}
 }
@@ -104,6 +118,12 @@ func (c Config) Validate() error {
 	}
 	if c.LoginLockoutWindow <= 0 {
 		validationErrors = append(validationErrors, "LOGIN_LOCKOUT_MINUTES must be greater than zero")
+	}
+	if c.DefaultRetentionDays <= 0 {
+		validationErrors = append(validationErrors, "DEFAULT_RETENTION_DAYS must be greater than zero")
+	}
+	if c.WorkerScheduleSeconds <= 0 {
+		validationErrors = append(validationErrors, "WORKER_SCHEDULE_SECONDS must be greater than zero")
 	}
 	if c.AppEnv == "production" {
 		if contains(c.CORSAllowOrigins, "*") {

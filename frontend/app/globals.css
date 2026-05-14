@@ -1,28 +1,46 @@
 @import "tailwindcss";
 
 :root {
-  --canvas: #f4efe4;
-  --surface: #fffaf0;
-  --surface-strong: #f8ecd2;
-  --ink: #1f1d16;
-  --muted: #5a564d;
-  --line: rgba(31, 29, 22, 0.12);
-  --accent: #bb4d23;
-  --accent-soft: #f1b37d;
-  --success: #23684f;
-  --warning: #7a5e18;
-  --shadow: 0 20px 60px rgba(65, 38, 7, 0.08);
+  --background: #f5f7fb;
+  --foreground: #0f172a;
+  --muted: #667085;
+  --muted-foreground: #98a2b3;
+  --border: #dbe3ef;
+  --border-strong: #c7d3e3;
+  --card: rgba(255, 255, 255, 0.92);
+  --card-strong: #ffffff;
+  --card-soft: #eef4fb;
+  --sidebar: #0b1220;
+  --sidebar-foreground: #e6edf7;
+  --sidebar-muted: #8ea1bd;
+  --primary: #1769ff;
+  --primary-foreground: #ffffff;
+  --primary-soft: rgba(23, 105, 255, 0.1);
+  --success: #087f5b;
+  --success-soft: rgba(8, 127, 91, 0.12);
+  --warning: #b85c00;
+  --warning-soft: rgba(184, 92, 0, 0.12);
+  --danger: #c83a54;
+  --danger-soft: rgba(200, 58, 84, 0.12);
+  --info: #006c9c;
+  --info-soft: rgba(0, 108, 156, 0.12);
+  --shadow-sm: 0 8px 24px rgba(12, 24, 48, 0.06);
+  --shadow-md: 0 18px 50px rgba(12, 24, 48, 0.08);
+  --shadow-lg: 0 24px 80px rgba(12, 24, 48, 0.12);
+  --radius-sm: 16px;
+  --radius-md: 22px;
+  --radius-lg: 28px;
 }
 
 @theme inline {
-  --color-canvas: var(--canvas);
-  --color-surface: var(--surface);
-  --color-surface-strong: var(--surface-strong);
-  --color-ink: var(--ink);
+  --color-canvas: var(--background);
+  --color-surface: var(--card);
+  --color-surface-strong: var(--card-strong);
+  --color-ink: var(--foreground);
   --color-muted: var(--muted);
-  --color-line: var(--line);
-  --color-accent: var(--accent);
-  --color-accent-soft: var(--accent-soft);
+  --color-line: var(--border);
+  --color-accent: var(--primary);
+  --color-accent-soft: var(--primary-soft);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --font-sans: var(--font-manrope);
@@ -39,10 +57,12 @@ html {
 
 body {
   margin: 0;
+  min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(187, 77, 35, 0.14), transparent 28%),
-    linear-gradient(180deg, #fff6e7 0%, var(--canvas) 38%, #f7f1e4 100%);
-  color: var(--ink);
+    radial-gradient(circle at top left, rgba(23, 105, 255, 0.12), transparent 26%),
+    radial-gradient(circle at top right, rgba(0, 108, 156, 0.08), transparent 20%),
+    linear-gradient(180deg, #f9fbff 0%, var(--background) 52%, #eef4fb 100%);
+  color: var(--foreground);
   font-family: var(--font-manrope), sans-serif;
 }
 
@@ -52,15 +72,15 @@ a {
 }
 
 ::selection {
-  background: rgba(187, 77, 35, 0.18);
+  background: rgba(23, 105, 255, 0.18);
 }
 
 .panel {
-  background: rgba(255, 250, 240, 0.86);
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  box-shadow: var(--shadow);
-  backdrop-filter: blur(10px);
+  background: var(--card);
+  border: 1px solid rgba(199, 211, 227, 0.65);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(14px);
 }
 
 .eyebrow {
@@ -80,9 +100,9 @@ a {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(to right, rgba(31, 29, 22, 0.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(31, 29, 22, 0.035) 1px, transparent 1px);
-  background-size: 30px 30px;
+    linear-gradient(to right, rgba(15, 23, 42, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
   pointer-events: none;
   mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.5), transparent);
 }
@@ -90,20 +110,42 @@ a {
 .field {
   width: 100%;
   border-radius: 18px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.96);
   padding: 0.9rem 1rem;
-  color: var(--ink);
+  color: var(--foreground);
   outline: none;
-  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease, transform 160ms ease;
 }
 
 .field:focus {
-  border-color: rgba(187, 77, 35, 0.6);
-  box-shadow: 0 0 0 4px rgba(187, 77, 35, 0.12);
-  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(23, 105, 255, 0.55);
+  box-shadow: 0 0 0 4px rgba(23, 105, 255, 0.12);
+  background: #ffffff;
 }
 
 .field::placeholder {
-  color: rgba(90, 86, 77, 0.76);
+  color: rgba(102, 112, 133, 0.86);
+}
+
+.field:disabled {
+  cursor: not-allowed;
+  background: #f8fafc;
+  color: var(--muted);
+}
+
+.surface-grid {
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
 }

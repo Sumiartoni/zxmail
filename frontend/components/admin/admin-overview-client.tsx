@@ -2,146 +2,128 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { MetricCard } from "@/components/dashboard/metric-card";
-import { PageHero } from "@/components/shared/page-hero";
-import { SectionCard } from "@/components/shared/section-card";
-import { StatusBadge } from "@/components/shared/status-badge";
+import { RiskBadge } from "@/components/admin/risk-badge";
 import { useAuth } from "@/components/providers/auth-provider";
-import { formatDateTime } from "@/lib/utils";
-import type { CredentialResponse, DomainRecord, OrganizationRecord, SendLog } from "@/types/zxmail";
+import { MetricCard } from "@/components/ui/metric-card";
+import { DataTable } from "@/components/ui/data-table";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { LoadingSkeleton } from "@/components/ui/loading-skeleton";
+import { PageHeader } from "@/components/ui/page-header";
+import { formatNumber, formatPercentage } from "@/lib/utils";
+import type { AdminOverview, RiskRecord } from "@/types/zxmail";
 
 export function AdminOverviewClient() {
   const { api } = useAuth();
-  const [organizations, setOrganizations] = useState<OrganizationRecord[]>([]);
-  const [domains, setDomains] = useState<DomainRecord[]>([]);
-  const [credentials, setCredentials] = useState<CredentialResponse[]>([]);
-  const [logs, setLogs] = useState<SendLog[]>([]);
+  const [overview, setOverview] = useState<AdminOverview | null>(null);
+  const [risk, setRisk] = useState<RiskRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
-
-    async function loadAdminOverview() {
-      const [nextOrganizations, nextDomains, nextCredentials, logsResult] =
-        await Promise.all([
-          api.listOrganizations(),
-          api.listDomains(),
-          api.listCredentials(),
-          api.listLogs({ limit: 5, offset: 0 }),
-        ]);
-      if (!mounted) {
-        return;
-      }
-      setOrganizations(nextOrganizations);
-      setDomains(nextDomains);
-      setCredentials(nextCredentials);
-      setLogs(logsResult.logs);
-    }
-
-    loadAdminOverview().catch(() => {});
+    Promise.all([api.getAdminOverview(), api.listRiskOrganizations()])
+      .then(([nextOverview, nextRisk]) => {
+        if (mounted) {
+          setOverview(nextOverview);
+          setRisk(nextRisk);
+          setError(null);
+        }
+      })
+      .catch((nextError) => {
+        if (mounted) {
+          setError(nextError instanceof Error ? nextError.message : "Failed to load admin overview");
+        }
+      })
+      .finally(() => {
+        if (mounted) {
+          setLoading(false);
+        }
+      });
     return () => {
       mounted = false;
     };
   }, [api]);
 
-  const deliveredCount = logs.filter((log) => log.status === "delivered").length;
-  const bounceCount = logs.filter((log) => log.status === "bounced").length;
-
   return (
     <div className="space-y-6">
-      <PageHero
+      <PageHeader
         eyebrow="Admin overview"
-        title="Operator view across organizations, credentials, and delivery events"
-        description="Production v1 keeps the global operator surface intentionally narrow: organization management, logs, system health, quotas, and deliverability basics."
+        title="Global posture for customers, traffic, and payment risk"
+        description="Production Ready v2 shifts the admin surface from simple monitoring to real SaaS operations: package state, quota posture, deliverability indicators, and manual payment workflow."
         actions={
           <>
-            <Link
-              href="/admin/customers"
-              className="inline-flex items-center justify-center rounded-full bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#9f411e]"
-            >
-              Manage customers
+            <Link href="/admin/payments" className="inline-flex items-center justify-center rounded-[16px] bg-[var(--primary)] px-4 py-2.5 text-sm font-semibold text-white shadow-[0_14px_32px_rgba(23,105,255,0.24)]">
+              Review payments
             </Link>
-            <Link
-              href="/admin/system"
-              className="inline-flex items-center justify-center rounded-full border border-[var(--line)] bg-white/70 px-4 py-2.5 text-sm font-semibold transition hover:bg-white"
-            >
-              System health
+            <Link href="/admin/alerts" className="inline-flex items-center justify-center rounded-[16px] border border-[var(--border)] bg-white px-4 py-2.5 text-sm font-semibold">
+              Open alerts
             </Link>
           </>
         }
       />
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          label="Organizations"
-          value={String(organizations.length).padStart(2, "0")}
-          note="Customer organizations currently provisioned inside the control plane."
-        />
-        <MetricCard
-          label="Verified domains"
-          value={String(domains.filter((domain) => domain.verified).length).padStart(2, "0")}
-          note="Sending domains that passed required TXT checks."
-        />
-        <MetricCard
-          label="Active credentials"
-          value={String(credentials.filter((item) => item.credential.enabled).length).padStart(2, "0")}
-          note="Enabled SMTP identities across all organizations."
-        />
-        <MetricCard
-          label="Bounce events"
-          value={String(bounceCount).padStart(2, "0")}
-          note={`${deliveredCount} delivered events in the same current sample window.`}
-        />
-      </section>
+      {loading ? (
+        <div className="grid gap-4">
+          <LoadingSkeleton className="h-32" />
+          <LoadingSkeleton className="h-80" />
+        </div>
+      ) : error || !overview ? (
+        <ErrorState description={error || "Admin overview could not be loaded."} retryLabel="Retry" onRetry={() => window.location.reload()} />
+      ) : (
+        <>
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="Accepted volume" value={formatNumber(overview.total_email_sent)} note="Accepted webhook events across all organizations." />
+            <MetricCard label="Delivered" value={formatNumber(overview.delivered)} note="Delivered volume in the current aggregate window." />
+            <MetricCard label="Open alerts" value={formatNumber(overview.open_alerts)} note="Operational and deliverability alerts requiring review." />
+            <MetricCard label="Past-due invoices" value={formatNumber(overview.past_due_payments)} note="Invoices or payment flows that need manual follow-up." />
+          </section>
 
-      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-        <SectionCard
-          title="Newest customer organizations"
-          description="Admin-created customers own their organization and can only access their own scoped data."
-        >
-          <div className="space-y-3">
-            {organizations.slice(0, 4).map((organization) => (
-              <div
-                key={organization.id}
-                className="rounded-2xl border border-[var(--line)] bg-white/70 p-4"
-              >
-                <div className="flex items-center justify-between gap-3">
+          <DataTable
+            rows={risk}
+            getRowKey={(item) => item.organization_id}
+            emptyState={<EmptyState title="No organizations yet" description="Risk posture will appear after customers, domains, and traffic exist." />}
+            columns={[
+              {
+                key: "name",
+                header: "Organization",
+                render: (item) => (
                   <div>
-                    <p className="font-semibold">{organization.name}</p>
-                    <p className="mt-1 text-sm text-[var(--muted)]">
-                      {organization.owner_email} · {formatDateTime(organization.created_at)}
-                    </p>
+                    <p className="font-semibold">{item.name}</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[var(--muted)]">{item.payment_status}</p>
                   </div>
-                  <StatusBadge value="active" />
-                </div>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-
-        <SectionCard
-          title="Latest message activity"
-          description="Use the admin logs page for full filtering by domain, credential, message ID, recipient, and date range."
-        >
-          <div className="space-y-3">
-            {logs.map((log) => (
-              <div
-                key={log.id}
-                className="rounded-2xl border border-[var(--line)] bg-white/70 p-4"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="font-semibold">{log.subject || "No subject"}</p>
-                    <p className="mt-1 text-sm text-[var(--muted)]">
-                      {log.domain_name} · {log.to_addr}
-                    </p>
-                  </div>
-                  <StatusBadge value={log.status} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </SectionCard>
-      </div>
+                ),
+              },
+              {
+                key: "risk",
+                header: "Risk score",
+                render: (item) => <RiskBadge score={item.risk_score} />,
+              },
+              {
+                key: "bounce",
+                header: "Bounce rate",
+                render: (item) => <p className="text-sm text-[var(--muted)]">{formatPercentage(item.bounce_rate * 100)}</p>,
+              },
+              {
+                key: "status",
+                header: "State",
+                render: (item) => (
+                  <p className="text-sm font-semibold text-[var(--foreground)]">{item.suspended ? "Suspended" : "Active"}</p>
+                ),
+              },
+              {
+                key: "detail",
+                header: "Detail",
+                render: (item) => (
+                  <Link href={`/admin/organizations/${item.organization_id}`} className="text-sm font-semibold text-[var(--primary)]">
+                    Open detail
+                  </Link>
+                ),
+              },
+            ]}
+          />
+        </>
+      )}
     </div>
   );
 }

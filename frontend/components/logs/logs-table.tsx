@@ -2,11 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/shared/button";
-import { SectionCard } from "@/components/shared/section-card";
+import { PageHero } from "@/components/shared/page-hero";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { useAuth } from "@/components/providers/auth-provider";
+import { CodeBlock } from "@/components/ui/code-block";
+import { DataTable } from "@/components/ui/data-table";
+import { Drawer } from "@/components/ui/drawer";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { MessageTimeline } from "@/components/ui/message-timeline";
+import { SectionCard } from "@/components/shared/section-card";
 import { formatDateTime } from "@/lib/utils";
 import type { CredentialResponse, DomainRecord, LogsFilterState, SendLog } from "@/types/zxmail";
-import { useAuth } from "@/components/providers/auth-provider";
 
 const initialFilters: LogsFilterState = {
   domain_id: "",
@@ -68,17 +75,17 @@ export function LogsTable({
       }
     }
 
-    loadInitial();
+    void loadInitial();
     return () => {
       mounted = false;
     };
   }, [api]);
 
-  async function applyFilters() {
+  async function applyFilters(nextFilters = filters) {
     setLoading(true);
     setError("");
     try {
-      const result = await api.listLogs(filters);
+      const result = await api.listLogs(nextFilters);
       setLogs(result.logs);
       setSelectedLog(result.logs[0] ?? null);
       setTotal(result.total);
@@ -91,7 +98,16 @@ export function LogsTable({
 
   return (
     <div className="space-y-6">
-      <SectionCard title={title} description={description}>
+      <PageHero
+        eyebrow="Logs"
+        title={title}
+        description={description}
+      />
+
+      <SectionCard
+        title="Filters"
+        description="Search accepted, delivered, bounced, deferred, and rejected messages by domain, credential, message ID, recipient, and date range."
+      >
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <select
             className="field"
@@ -119,17 +135,14 @@ export function LogsTable({
           >
             <option value="">All credentials</option>
             {credentials.map((credential) => (
-              <option
-                key={credential.credential.id}
-                value={credential.credential.id}
-              >
+              <option key={credential.credential.id} value={credential.credential.id}>
                 {credential.credential.label || credential.credential.username}
               </option>
             ))}
           </select>
           <input
             className="field"
-            placeholder="Message ID or Postal ID"
+            placeholder="Message ID"
             value={filters.message_id}
             onChange={(event) =>
               setFilters((current) => ({ ...current, message_id: event.target.value }))
@@ -150,7 +163,7 @@ export function LogsTable({
               setFilters((current) => ({ ...current, status: event.target.value }))
             }
           >
-            <option value="">Any status</option>
+            <option value="">All statuses</option>
             <option value="accepted">Accepted</option>
             <option value="delivered">Delivered</option>
             <option value="bounced">Bounced</option>
@@ -184,129 +197,109 @@ export function LogsTable({
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <Button onClick={applyFilters}>Apply filters</Button>
+          <Button onClick={() => void applyFilters()}>Apply filters</Button>
           <Button
             variant="ghost"
             onClick={() => {
               setFilters(initialFilters);
-              setSelectedLog(null);
+              void applyFilters(initialFilters);
             }}
           >
-            Reset filters
+            Reset
           </Button>
           <span className="text-sm text-[var(--muted)]">{total} matching events</span>
         </div>
       </SectionCard>
 
-      {error ? (
-        <div className="rounded-3xl border border-[#d8ad9f] bg-[#fff1ec] px-4 py-3 text-sm text-[#8d2d11]">
-          {error}
-        </div>
-      ) : null}
+      {error ? <ErrorState description={error} /> : null}
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <SectionCard
-          title="Event stream"
-          description="Search by domain, credential, recipient, status, or message identifier."
-        >
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="text-[var(--muted)]">
-                <tr>
-                  <th className="pb-3 font-medium">Message</th>
-                  <th className="pb-3 font-medium">Recipient</th>
-                  <th className="pb-3 font-medium">Status</th>
-                  <th className="pb-3 font-medium">Time</th>
-                </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <tr
-                    key={log.id}
-                    className="cursor-pointer border-t border-[var(--line)]"
-                    onClick={() => setSelectedLog(log)}
-                  >
-                    <td className="py-4 pr-4">
-                      <div className="font-semibold text-[var(--ink)]">
-                        {log.subject || "No subject"}
-                      </div>
-                      <div className="mt-1 font-mono text-xs text-[var(--muted)]">
-                        {log.message_id_header || log.postal_message_id}
-                      </div>
-                    </td>
-                    <td className="py-4 pr-4">
-                      <div>{log.to_addr}</div>
-                      <div className="mt-1 text-xs text-[var(--muted)]">
-                        {log.domain_name || "Unknown domain"}
-                      </div>
-                    </td>
-                    <td className="py-4 pr-4">
-                      <StatusBadge value={log.status} />
-                    </td>
-                    <td className="py-4">{formatDateTime(log.created_at)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {!loading && logs.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-sm text-[var(--muted)]">
-                No events matched the current filter set.
-              </div>
-            ) : null}
-          </div>
-        </SectionCard>
-
-        <SectionCard
-          title="Event detail"
-          description="Inspect the selected Postal event with reason and raw payload."
-        >
-          {selectedLog ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center gap-3">
-                <StatusBadge value={selectedLog.status} />
-                <span className="text-sm text-[var(--muted)]">
-                  {formatDateTime(selectedLog.created_at)}
-                </span>
-              </div>
-              <div className="space-y-2 text-sm leading-7 text-[var(--muted)]">
-                <p>
-                  <span className="font-semibold text-[var(--ink)]">From:</span>{" "}
-                  {selectedLog.from_addr}
-                </p>
-                <p>
-                  <span className="font-semibold text-[var(--ink)]">To:</span>{" "}
-                  {selectedLog.to_addr}
-                </p>
-                <p>
-                  <span className="font-semibold text-[var(--ink)]">Domain:</span>{" "}
-                  {selectedLog.domain_name || "Unknown"}
-                </p>
-                <p>
-                  <span className="font-semibold text-[var(--ink)]">Credential:</span>{" "}
-                  {selectedLog.credential_name || "Unknown"}
-                </p>
-                {selectedLog.reason ? (
-                  <p>
-                    <span className="font-semibold text-[var(--ink)]">Reason:</span>{" "}
-                    {selectedLog.reason}
+      <SectionCard
+        title="Message events"
+        description="Open any row to inspect the message timeline, addresses, reason, and sanitized raw event payload."
+      >
+        <DataTable
+          rows={logs}
+          getRowKey={(row) => row.id}
+          onRowClick={setSelectedLog}
+          emptyState={
+            !loading ? (
+              <EmptyState
+                title="No matching events"
+                description="Try a broader date range or clear some filters to find message activity."
+              />
+            ) : null
+          }
+          columns={[
+            {
+              key: "message",
+              header: "Message",
+              render: (log) => (
+                <div>
+                  <p className="font-semibold">{log.subject || "No subject"}</p>
+                  <p className="mt-1 font-mono text-xs text-[var(--muted)]">
+                    {log.message_id_header || log.postal_message_id || "No message id"}
                   </p>
-                ) : null}
-              </div>
+                </div>
+              ),
+            },
+            {
+              key: "recipient",
+              header: "Recipient",
+              render: (log) => (
+                <div>
+                  <p>{log.to_addr}</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">{log.domain_name || "Unknown domain"}</p>
+                </div>
+              ),
+            },
+            {
+              key: "status",
+              header: "Status",
+              className: "w-[140px]",
+              render: (log) => <StatusBadge value={log.status} />,
+            },
+            {
+              key: "time",
+              header: "Time",
+              className: "w-[180px]",
+              render: (log) => <span className="text-[var(--muted)]">{formatDateTime(log.created_at)}</span>,
+            },
+          ]}
+        />
+      </SectionCard>
 
-              <div className="rounded-3xl border border-[var(--line)] bg-[#f8f3ea] p-4">
-                <p className="eyebrow">Raw event</p>
-                <pre className="mt-3 overflow-x-auto text-xs leading-6 text-[var(--muted)]">
-                  {JSON.stringify(selectedLog.raw_event, null, 2)}
-                </pre>
-              </div>
+      <Drawer
+        open={Boolean(selectedLog)}
+        title={selectedLog?.subject || "Message detail"}
+        description="This drawer shows frontend-safe message metadata plus the current raw event payload returned by the API."
+        onClose={() => setSelectedLog(null)}
+      >
+        {selectedLog ? (
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-center gap-3">
+              <StatusBadge value={selectedLog.status} />
+              <span className="text-sm text-[var(--muted)]">{formatDateTime(selectedLog.created_at)}</span>
             </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-[var(--line)] px-4 py-8 text-sm text-[var(--muted)]">
-              Select an event from the table to inspect its timeline payload.
+
+            <MessageTimeline currentStatus={selectedLog.status} />
+
+            <div className="rounded-[22px] border border-[var(--border)] bg-[#fbfdff] p-4 text-sm leading-7 text-[var(--muted)]">
+              <p><span className="font-semibold text-[var(--foreground)]">From:</span> {selectedLog.from_addr}</p>
+              <p><span className="font-semibold text-[var(--foreground)]">To:</span> {selectedLog.to_addr}</p>
+              <p><span className="font-semibold text-[var(--foreground)]">Domain:</span> {selectedLog.domain_name || "Unknown"}</p>
+              <p><span className="font-semibold text-[var(--foreground)]">Credential:</span> {selectedLog.credential_name || "Unknown"}</p>
+              <p><span className="font-semibold text-[var(--foreground)]">Message ID:</span> {selectedLog.message_id_header || selectedLog.postal_message_id || "Unknown"}</p>
+              {selectedLog.reason ? (
+                <p><span className="font-semibold text-[var(--foreground)]">Reason:</span> {selectedLog.reason}</p>
+              ) : null}
             </div>
-          )}
-        </SectionCard>
-      </div>
+
+            <CodeBlock label="Raw event">
+              {JSON.stringify(selectedLog.raw_event, null, 2)}
+            </CodeBlock>
+          </div>
+        ) : null}
+      </Drawer>
     </div>
   );
 }

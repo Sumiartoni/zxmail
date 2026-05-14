@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    void bootstrap()
+    void bootstrap();
     return () => {
       active = false;
     };

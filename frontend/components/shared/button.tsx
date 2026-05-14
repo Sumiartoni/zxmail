@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { cn } from "@/lib/utils";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "primary" | "secondary" | "ghost" | "danger";
@@ -13,18 +14,22 @@ export function Button({
 }: ButtonProps) {
   const styles = {
     primary:
-      "bg-[var(--accent)] text-white shadow-[0_10px_30px_rgba(187,77,35,0.24)] hover:bg-[#9f411e]",
+      "border border-transparent bg-[var(--primary)] text-[var(--primary-foreground)] shadow-[0_14px_32px_rgba(23,105,255,0.24)] hover:bg-[#1458d6]",
     secondary:
-      "border border-[var(--line)] bg-white/75 text-[var(--ink)] hover:bg-white",
+      "border border-[var(--border)] bg-white text-[var(--foreground)] hover:bg-[#f8fbff]",
     ghost:
-      "border border-transparent bg-transparent text-[var(--muted)] hover:border-[var(--line)] hover:bg-white/65 hover:text-[var(--ink)]",
+      "border border-transparent bg-transparent text-[var(--muted)] hover:border-[var(--border)] hover:bg-white/85 hover:text-[var(--foreground)]",
     danger:
-      "border border-[#d2a293] bg-[#fff2ee] text-[#8d2d11] hover:bg-[#ffe6df]",
+      "border border-[rgba(200,58,84,0.15)] bg-[rgba(200,58,84,0.08)] text-[var(--danger)] hover:bg-[rgba(200,58,84,0.12)]",
   };
 
   return (
     <button
-      className={`inline-flex items-center justify-center rounded-full px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-55 ${styles[variant]} ${className}`}
+      className={cn(
+        "inline-flex items-center justify-center gap-2 rounded-[16px] px-4 py-2.5 text-sm font-semibold transition duration-150 disabled:cursor-not-allowed disabled:opacity-55",
+        styles[variant],
+        className,
+      )}
       {...props}
     >
       {children}

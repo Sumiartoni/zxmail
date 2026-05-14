@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	quotamodule "zxmail/backend/internal/modules/quota"
+	usagemodule "zxmail/backend/internal/modules/usage"
 	"zxmail/backend/internal/platform/logger"
 )
 
@@ -24,6 +25,7 @@ type Service struct {
 	db    *pgxpool.Pool
 	log   *logger.Logger
 	quota *quotamodule.Service
+	usage *usagemodule.Service
 }
 
 type PostalEvent struct {
@@ -49,8 +51,8 @@ type ProcessResult struct {
 	PostalMessage string `json:"postal_message_id"`
 }
 
-func NewService(db *pgxpool.Pool, log *logger.Logger, quotaService *quotamodule.Service) *Service {
-	return &Service{db: db, log: log, quota: quotaService}
+func NewService(db *pgxpool.Pool, log *logger.Logger, quotaService *quotamodule.Service, usageService *usagemodule.Service) *Service {
+	return &Service{db: db, log: log, quota: quotaService, usage: usageService}
 }
 
 func (s *Service) ProcessPostalEvent(ctx context.Context, payload []byte) (*ProcessResult, error) {
@@ -114,11 +116,12 @@ func (s *Service) ProcessPostalEvent(ctx context.Context, payload []byte) (*Proc
 	err = tx.QueryRow(
 		ctx,
 		`INSERT INTO send_logs (
-			domain_id, credential_id, postal_message_id, message_id_header,
+			organization_id, domain_id, credential_id, postal_message_id, message_id_header,
 			from_addr, to_addr, subject, status, raw_event, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11)
 		ON CONFLICT (postal_message_id, status) WHERE postal_message_id IS NOT NULL DO NOTHING
 		RETURNING id`,
+		organizationID,
 		domainID,
 		credentialID,
 		nullIfEmpty(event.Message.ID),
@@ -161,8 +164,9 @@ func (s *Service) ProcessPostalEvent(ctx context.Context, payload []byte) (*Proc
 	if event.Event == "bounced" && organizationID != nil {
 		if _, err := tx.Exec(
 			ctx,
-			`INSERT INTO bounces (domain_id, credential_id, recipient, reason, postal_message_id, created_at, disabled)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			`INSERT INTO bounces (organization_id, domain_id, credential_id, recipient, reason, postal_message_id, created_at, disabled)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+			organizationID,
 			domainID,
 			credentialID,
 			event.Message.To,
@@ -198,6 +202,11 @@ func (s *Service) ProcessPostalEvent(ctx context.Context, payload []byte) (*Proc
 	if event.Event == "accepted" && credentialID != nil && s.quota != nil {
 		if err := s.quota.RecordAcceptedEvent(ctx, *credentialID, eventTime); err != nil {
 			s.log.Error("quota minute counter update failed for credential %s: %v", credentialID.String(), err)
+		}
+	}
+	if s.usage != nil && organizationID != nil {
+		if err := s.usage.RecordSendLogEvent(ctx, insertedLogID, *organizationID, credentialID, domainID, event.Event, eventTime); err != nil {
+			s.log.Error("usage record update failed for send log %s: %v", insertedLogID, err)
 		}
 	}
 

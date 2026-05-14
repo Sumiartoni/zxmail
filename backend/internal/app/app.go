@@ -10,12 +10,18 @@ import (
 
 	"zxmail/backend/internal/config"
 	httpapi "zxmail/backend/internal/http"
+	adminv2module "zxmail/backend/internal/modules/adminv2"
 	authmodule "zxmail/backend/internal/modules/auth"
+	billingmodule "zxmail/backend/internal/modules/billing"
 	credentialsmodule "zxmail/backend/internal/modules/credentials"
+	deliverabilitymodule "zxmail/backend/internal/modules/deliverability"
 	domainsmodule "zxmail/backend/internal/modules/domains"
 	logsmodule "zxmail/backend/internal/modules/logs"
+	operationsmodule "zxmail/backend/internal/modules/operations"
 	organizationsmodule "zxmail/backend/internal/modules/organizations"
 	quotamodule "zxmail/backend/internal/modules/quota"
+	retentionmodule "zxmail/backend/internal/modules/retention"
+	usagemodule "zxmail/backend/internal/modules/usage"
 	webhooksmodule "zxmail/backend/internal/modules/webhooks"
 	"zxmail/backend/internal/platform/cache"
 	"zxmail/backend/internal/platform/database"
@@ -78,6 +84,7 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	orgService := organizationsmodule.NewService(dbPool, log)
 	domainService := domainsmodule.NewService(dbPool, log)
 	quotaService := quotamodule.NewService(dbPool, redisClient, log)
+	usageService := usagemodule.NewService(dbPool, redisClient, log)
 	keyring, err := security.NewKeyring(security.KeyringConfig{
 		LegacyKey:   cfg.EncryptionKey,
 		LegacyKeyID: cfg.EncryptionKeyID,
@@ -89,7 +96,21 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 	}
 	credentialService := credentialsmodule.NewService(dbPool, log, keyring, quotaService)
 	logsService := logsmodule.NewService(dbPool, log)
-	webhooksService := webhooksmodule.NewService(dbPool, log, quotaService)
+	billingService := billingmodule.NewService(dbPool, log)
+	deliverabilityService := deliverabilitymodule.NewService(dbPool, log, domainService)
+	retentionService := retentionmodule.NewService(dbPool, log, cfg.DefaultRetentionDays)
+	operationsService := operationsmodule.NewService(dbPool, redisClient, log, postalClient)
+	adminV2Service := adminv2module.NewService(
+		dbPool,
+		log,
+		usageService,
+		billingService,
+		credentialService,
+		cfg.SMTPHost,
+		cfg.SMTPPortSTARTTLS,
+		cfg.SMTPPortTLS,
+	)
+	webhooksService := webhooksmodule.NewService(dbPool, log, quotaService, usageService)
 	router := httpapi.NewRouter(cfg, httpapi.Dependencies{
 		DB:                dbPool,
 		Redis:             redisClient,
@@ -102,6 +123,12 @@ func New(ctx context.Context, cfg config.Config) (*App, error) {
 		QuotaService:      quotaService,
 		LogsService:       logsService,
 		WebhooksService:   webhooksService,
+		BillingService:    billingService,
+		UsageService:      usageService,
+		Deliverability:    deliverabilityService,
+		AdminV2Service:    adminV2Service,
+		RetentionService:  retentionService,
+		Operations:        operationsService,
 	})
 
 	server := &http.Server{

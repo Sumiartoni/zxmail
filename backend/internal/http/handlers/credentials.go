@@ -74,6 +74,8 @@ func (h *CredentialsHandler) Create(c *gin.Context) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
 		case errors.Is(err, credentialsmodule.ErrCredentialDomainState):
 			c.JSON(http.StatusConflict, gin.H{"error": "domain must be verified"})
+		case errors.Is(err, credentialsmodule.ErrCredentialLimited):
+			c.JSON(http.StatusConflict, gin.H{"error": "organization is not allowed to issue new credentials in the current billing or suspension state"})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create credential"})
 		}

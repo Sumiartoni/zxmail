@@ -5,6 +5,11 @@
 go run ./cmd/api
 ```
 
+## Run worker
+```bash
+go run ./cmd/worker
+```
+
 Set `FIRST_ADMIN_EMAIL` and `FIRST_ADMIN_PASSWORD` before running if you want the first admin user to be created automatically.
 Login throttling is controlled by:
 - `LOGIN_MAX_FAILURES`
@@ -30,11 +35,13 @@ go test ./...
 Apply:
 ```bash
 psql "$DATABASE_URL" -f migrations/000001_init.up.sql
+psql "$DATABASE_URL" -f migrations/000002_production_v2.up.sql
 ```
 
 Rollback:
 ```bash
 psql "$DATABASE_URL" -f migrations/000001_init.down.sql
+psql "$DATABASE_URL" -f migrations/000002_production_v2.down.sql
 ```
 
 For existing databases that were created before key rotation support:
@@ -92,5 +99,22 @@ The API expects PostgreSQL and Redis to be reachable through the environment var
 
 ## Health semantics
 - `GET /health` and `GET /health/live` are liveness endpoints. They return `200 OK` when the HTTP server is alive.
-- `GET /health/ready` performs PostgreSQL and Redis checks and may return `503 Service Unavailable` until dependencies are reachable.
+- `GET /health/ready` and `GET /ready` perform PostgreSQL and Redis checks and may return `503 Service Unavailable` until dependencies are reachable.
 - Startup and readiness failures now include wrapped connection details such as PostgreSQL host/db/user or Redis addr/db to make deployment debugging less blind.
+
+## Production Ready v2 additions
+- `cmd/worker` runs scheduled jobs for:
+  - daily usage reset
+  - monthly usage reset
+  - deliverability snapshots
+  - alert generation
+  - retention cleanup
+- Manual billing configuration now uses:
+  - `MANUAL_BANK_NAME`
+  - `MANUAL_BANK_ACCOUNT_NAME`
+  - `MANUAL_BANK_ACCOUNT_NUMBER`
+  - `MANUAL_QRIS_LABEL`
+- Worker scheduling and retention use:
+  - `WORKER_PORT`
+  - `WORKER_SCHEDULE_SECONDS`
+  - `DEFAULT_RETENTION_DAYS`

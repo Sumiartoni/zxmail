@@ -2,13 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { Button } from "@/components/shared/button";
-import { CopyButton } from "@/components/shared/copy-button";
-import { Modal } from "@/components/shared/modal";
 import { PageHero } from "@/components/shared/page-hero";
 import { SectionCard } from "@/components/shared/section-card";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { useAuth } from "@/components/providers/auth-provider";
-import { formatDateTime, formatNumber } from "@/lib/utils";
+import { useToast } from "@/components/providers/toast-provider";
+import { CredentialSecretModal } from "@/components/ui/credential-secret-modal";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ErrorState } from "@/components/ui/error-state";
+import { Modal } from "@/components/shared/modal";
+import { QuotaUsageBar } from "@/components/ui/quota-usage-bar";
+import { formatDateTime } from "@/lib/utils";
 import type {
   CredentialResponse,
   CredentialSecretResponse,
@@ -33,6 +37,7 @@ const initialForm: CreateFormState = {
 
 export function CredentialsClient() {
   const { api } = useAuth();
+  const { pushToast } = useToast();
   const [domains, setDomains] = useState<DomainRecord[]>([]);
   const [credentials, setCredentials] = useState<CredentialResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -95,6 +100,11 @@ export function CredentialsClient() {
       setSecretResult(response);
       setModalOpen(false);
       setForm(initialForm);
+      pushToast({
+        title: "Credential created",
+        description: "The SMTP secret is ready to copy once before the modal closes.",
+        tone: "success",
+      });
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Failed to create credential");
     } finally {
@@ -107,95 +117,78 @@ export function CredentialsClient() {
       <PageHero
         eyebrow="SMTP credentials"
         title="Issue scoped SMTP identities with show-once secrets"
-        description="Create credentials only for verified domains, surface quota state, and expose Postal-compatible SMTP connection info without ever re-displaying an old password."
+        description="Create credentials only for verified domains, surface quota state clearly, and keep SMTP connection details easy to scan for developers."
         actions={
           <Button onClick={() => setModalOpen(true)}>Create credential</Button>
         }
       />
 
-      {error ? (
-        <div className="rounded-3xl border border-[#d8ad9f] bg-[#fff1ec] px-4 py-3 text-sm text-[#8d2d11]">
-          {error}
-        </div>
-      ) : null}
+      {error ? <ErrorState description={error} /> : null}
 
       <SectionCard
         title="Credential inventory"
-        description="Quota state is read from the backend response. A credential can move between enabled, limited, and disabled."
+        description="Quota state is read from the backend response. Passwords are intentionally absent here after the one-time reveal flow."
       >
-        <div className="space-y-4">
-          {credentials.map((entry) => (
-            <div
-              key={entry.credential.id}
-              className="rounded-3xl border border-[var(--line)] bg-white/75 p-5"
-            >
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-xl font-semibold">
-                      {entry.credential.label || entry.credential.username}
-                    </h3>
-                    <StatusBadge value={entry.credential.status} />
+        {credentials.length > 0 ? (
+          <div className="space-y-4">
+            {credentials.map((entry) => (
+              <div
+                key={entry.credential.id}
+                className="rounded-[26px] border border-[var(--border)] bg-white p-5 shadow-[var(--shadow-sm)]"
+              >
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="max-w-2xl">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <h3 className="text-xl font-semibold tracking-[-0.03em]">
+                        {entry.credential.label || entry.credential.username}
+                      </h3>
+                      <StatusBadge value={entry.credential.status} />
+                    </div>
+                    <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
+                      {entry.credential.domain_name} · created {formatDateTime(entry.credential.created_at)}
+                    </p>
+                    <div className="mt-4 rounded-[22px] border border-[var(--border)] bg-[#fbfdff] p-4 text-sm leading-7 text-[var(--muted)]">
+                      <p><span className="font-semibold text-[var(--foreground)]">Host:</span> {entry.smtp.host}</p>
+                      <p><span className="font-semibold text-[var(--foreground)]">Ports:</span> {entry.smtp.starttls_port} STARTTLS / {entry.smtp.tls_port} TLS</p>
+                      <p><span className="font-semibold text-[var(--foreground)]">Username:</span> {entry.smtp.username}</p>
+                      <p className="mt-2 text-xs uppercase tracking-[0.16em]">{entry.smtp.password_note}</p>
+                    </div>
                   </div>
-                  <p className="mt-2 text-sm leading-7 text-[var(--muted)]">
-                    {entry.credential.domain_name} · created{" "}
-                    {formatDateTime(entry.credential.created_at)}
-                  </p>
-                  <div className="mt-4 rounded-2xl bg-[#f8f3ea] p-4 text-sm leading-7 text-[var(--muted)]">
-                    <p>
-                      <span className="font-semibold text-[var(--ink)]">Host:</span>{" "}
-                      {entry.smtp.host}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-[var(--ink)]">Ports:</span>{" "}
-                      {entry.smtp.starttls_port} STARTTLS / {entry.smtp.tls_port} TLS
-                    </p>
-                    <p>
-                      <span className="font-semibold text-[var(--ink)]">Username:</span>{" "}
-                      {entry.smtp.username}
-                    </p>
-                    <p className="mt-2 text-xs uppercase tracking-[0.16em]">
-                      {entry.smtp.password_note}
-                    </p>
-                  </div>
-                </div>
 
-                <div className="grid gap-3 sm:grid-cols-3 lg:w-[440px]">
-                  <QuotaCell
-                    label="Per minute"
-                    used={entry.credential.per_minute_used}
-                    limit={entry.credential.per_minute_limit}
-                  />
-                  <QuotaCell
-                    label="Daily"
-                    used={entry.credential.daily_used}
-                    limit={entry.credential.daily_limit}
-                  />
-                  <QuotaCell
-                    label="Monthly"
-                    used={entry.credential.monthly_used}
-                    limit={entry.credential.monthly_limit}
-                  />
+                  <div className="grid w-full gap-3 lg:max-w-[420px]">
+                    <QuotaUsageBar
+                      label="Per-minute rate cap"
+                      used={entry.credential.per_minute_used}
+                      limit={entry.credential.per_minute_limit}
+                    />
+                    <QuotaUsageBar
+                      label="Daily quota"
+                      used={entry.credential.daily_used}
+                      limit={entry.credential.daily_limit}
+                    />
+                    <QuotaUsageBar
+                      label="Monthly quota"
+                      used={entry.credential.monthly_used}
+                      limit={entry.credential.monthly_limit}
+                    />
+                  </div>
                 </div>
+                <p className="mt-4 text-sm leading-7 text-[var(--muted)]">{entry.credential.enforcement_note}</p>
               </div>
-              <p className="mt-4 text-sm leading-7 text-[var(--muted)]">
-                {entry.credential.enforcement_note}
-              </p>
-            </div>
-          ))}
-
-          {!loading && credentials.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-sm text-[var(--muted)]">
-              No credentials yet. Create the first SMTP identity from a verified domain.
-            </div>
-          ) : null}
-        </div>
+            ))}
+          </div>
+        ) : !loading ? (
+          <EmptyState
+            title="No credentials yet"
+            description="Create the first SMTP identity from a verified domain. The secret will be shown once immediately after creation."
+          />
+        ) : null}
       </SectionCard>
 
       <Modal
         open={modalOpen}
         title="Create SMTP credential"
-        description="The password will be revealed once immediately after creation. It is never persisted in browser storage."
+        description="The password is revealed once immediately after creation and is never persisted in browser storage."
         onClose={() => setModalOpen(false)}
       >
         <div className="grid gap-4 md:grid-cols-2">
@@ -256,60 +249,11 @@ export function CredentialsClient() {
         </div>
       </Modal>
 
-      <Modal
+      <CredentialSecretModal
+        credential={secretResult}
         open={Boolean(secretResult)}
-        title="SMTP password revealed once"
-        description="Copy this secret now. Once you close this modal, the frontend clears it from memory and the backend will not return it again."
         onClose={() => setSecretResult(null)}
-      >
-        {secretResult ? (
-          <div className="space-y-5">
-            <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-2xl border border-[var(--line)] bg-white/70 p-4">
-                <p className="eyebrow">Username</p>
-                <p className="mt-2 break-all font-mono text-sm">
-                  {secretResult.smtp.username}
-                </p>
-                <div className="mt-3">
-                  <CopyButton value={secretResult.smtp.username} />
-                </div>
-              </div>
-              <div className="rounded-2xl border border-[var(--line)] bg-white/70 p-4">
-                <p className="eyebrow">Password</p>
-                <p className="mt-2 break-all font-mono text-sm">{secretResult.secret}</p>
-                <div className="mt-3">
-                  <CopyButton value={secretResult.secret} />
-                </div>
-              </div>
-            </div>
-            <div className="rounded-2xl border border-[#e0bb8e] bg-[#fff4df] p-4 text-sm leading-7 text-[#7b5a13]">
-              Save this secret in your application immediately. zxMail will not show it again after this modal closes.
-            </div>
-          </div>
-        ) : null}
-      </Modal>
-    </div>
-  );
-}
-
-function QuotaCell({
-  label,
-  used,
-  limit,
-}: {
-  label: string;
-  used: number;
-  limit?: number | null;
-}) {
-  return (
-    <div className="rounded-2xl border border-[var(--line)] bg-white/75 p-4">
-      <p className="eyebrow">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tracking-[-0.04em]">
-        {formatNumber(used)}
-      </p>
-      <p className="mt-1 text-sm text-[var(--muted)]">
-        / {limit !== null && limit !== undefined ? formatNumber(limit) : "unlimited"}
-      </p>
+      />
     </div>
   );
 }
